@@ -1,0 +1,20 @@
+name: resume-analyzer
+
+services:
+  ollama:
+    build: ./ollama
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama_vol:/ollama
+    entrypoint: ["/usr/bin/bash", "pull-llama3.sh"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama_vol:
