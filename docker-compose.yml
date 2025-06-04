@@ -2,6 +2,7 @@ name: resume-analyzer
 
 services:
   api:
+    container_name: api
     build: .
     ports:
       - "8000:8000"
@@ -11,6 +12,7 @@ services:
       - mongo
 
   mongo:
+    container_name: mongo
     image: mongo:6
     restart: always
     environment:
@@ -22,6 +24,7 @@ services:
       - mongo_vol:/data/db
 
   ollama:
+    container_name: ollama
     build: ./ollama
     ports:
       - 11434:11434
