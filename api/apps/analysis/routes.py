@@ -1,7 +1,12 @@
 import shutil
-from uuid import UUID
 from http import HTTPStatus
 from pathlib import Path
+
+from uuid import (
+    UUID,
+    uuid4
+)
+
 from fastapi import (
     HTTPException,
     UploadFile,
@@ -9,6 +14,7 @@ from fastapi import (
     File,
     Form
 )
+
 from typing import (
     Optional,
     List
@@ -30,7 +36,7 @@ UPLOAD_FOLDER = Path("/shared")
 )
 async def analyze_resumes(
     files: List[UploadFile] = File(...),
-    query: Optional[str] = Form(None),
+    query: Optional[str] = Form(''),
     request_id: UUID = Form(...),
     user_id: UUID = Form(...)
 ):
@@ -49,7 +55,7 @@ async def analyze_resumes(
     a log object with tracking details.
     """  # noqa: E501
 
-    files_names = []
+    file_names = []
 
     for file in files:
         if file.content_type not in ["image/jpeg", "image/png", "application/pdf"]:  # noqa: E501
@@ -58,12 +64,14 @@ async def analyze_resumes(
                 detail=f"Unsupported file type: {file.filename}"
             )
 
-        file_location = UPLOAD_FOLDER / file.filename
+        file_extension = Path(file.filename).suffix.lower()
+        unique_file_name = f"{uuid4().hex}{file_extension}"
+        file_location = UPLOAD_FOLDER / unique_file_name
 
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
-        files_names.append(file.filename)
+        file_names.append(unique_file_name)
 
     log = await create_log_entry(
         request_id=request_id,
@@ -73,7 +81,7 @@ async def analyze_resumes(
 
     celery.send_task(
         "worker.analyze_resumes_task",
-        args=[files_names, log.id, query]
+        args=[file_names, log.id, query]
     )
 
     return {
