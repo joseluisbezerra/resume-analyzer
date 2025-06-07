@@ -50,6 +50,11 @@ services:
     depends_on:
       - mongo
       - rabbitmq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
   ollama:
     container_name: ollama
@@ -59,6 +64,11 @@ services:
     volumes:
       - ollama_vol:/ollama
     entrypoint: ["/usr/bin/bash", "pull-llama3.sh"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
 volumes:
   mongo_vol:

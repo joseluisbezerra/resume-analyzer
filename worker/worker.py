@@ -23,6 +23,7 @@ MONGO_DB = os.getenv("MONGO_DB")
 ocr_engine = PaddleOCR(
     ocr_version='PP-OCRv3',
     use_textline_orientation=True,
+    use_gpu=True,
     lang='pt'
 )
 
@@ -35,6 +36,8 @@ def analyze_resumes_task(file_names: List[str], log_id: UUID, query=''):
     db = client[MONGO_DB]
 
     try:
+        logger.info("Processing started successfully for log_id: %s", log_id)
+
         result = {
             "summaries": []
         }
@@ -45,6 +48,8 @@ def analyze_resumes_task(file_names: List[str], log_id: UUID, query=''):
             extracted_text = []
             images = []
 
+            logger.info("OCR started successfully for file: %s", file_name)
+            
             if file_name.lower().endswith(".pdf"):
                 images += convert_from_path(str(file_path))
             else:
@@ -56,16 +61,24 @@ def analyze_resumes_task(file_names: List[str], log_id: UUID, query=''):
                 text = "\n".join(ocr_result[0]["rec_texts"])
                 extracted_text.append(text)
 
+            logger.info("Summarize started successfully for file: %s", file_name)
+
             summary = summarize(" ".join(extracted_text))
             result["summaries"].append(summary)
 
             file_path.unlink(missing_ok=True)
 
+            logger.info("OCR and summarize completed successfully for file: %s", file_name)
+
         if (query.strip() != ''):
+            logger.info("Match resume to question started successfully")
+
             result["analysis"] = match_resume_to_question(
                 summaries=result.summaries,
                 question=query
             )
+
+            logger.info("Match resume to question completed successfully")
 
         db.logs.find_one_and_update(
             {"id": str(log_id)},
