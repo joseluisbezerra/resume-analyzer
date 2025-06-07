@@ -1,5 +1,12 @@
-from datetime import datetime
-from uuid import UUID
+from datetime import (
+    datetime,
+    timezone
+)
+
+from uuid import (
+    UUID,
+    uuid4
+)
 
 from typing import (
     Optional,
@@ -8,6 +15,7 @@ from typing import (
 
 from database import db
 from apps.logs.schemas import LogEntry
+from apps.utils.enums import LogStatus
 
 
 async def get_logs(
@@ -40,3 +48,32 @@ async def get_logs(
     logs_cursor = db.logs.find(query).sort("timestamp", -1)
 
     return await logs_cursor.to_list(length=limit)
+
+
+async def get_log_by_id(id: UUID) -> Optional[LogEntry]:
+    log = await db.logs.find_one({"id": str(id)})
+
+    if log:
+        return LogEntry(**log)
+
+    return None
+
+
+async def create_log_entry(
+    request_id: UUID,
+    user_id: UUID,
+    query="",
+) -> LogEntry:
+    log_dict = {
+        "id": str(uuid4()),
+        "request_id": str(request_id),
+        "user_id": str(user_id),
+        "timestamp": datetime.now(timezone.utc),
+        "query": query,
+        "result": {},
+        "status": LogStatus.PROCESSING
+    }
+
+    await db.logs.insert_one(log_dict)
+
+    return LogEntry(**log_dict)

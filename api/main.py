@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from apps.logs.routes import logs
+from apps.analysis.routes import analysis
 
 app = FastAPI(
     title="Resume Analyzer",
@@ -8,3 +9,4 @@ app = FastAPI(
 
 
 app.include_router(logs, prefix="/api", tags=["logs"])
+app.include_router(analysis, prefix="/api", tags=["analysis"])

@@ -1,9 +1,11 @@
-from datetime import datetime
 from uuid import UUID
-
+from http import HTTPStatus
+from datetime import datetime
 from fastapi import (
+    HTTPException,
     APIRouter,
-    Query
+    Query,
+    Path
 )
 
 from typing import (
@@ -12,7 +14,10 @@ from typing import (
 )
 
 from apps.logs.schemas import LogEntry
-from apps.logs.services import get_logs
+from apps.logs.services import (
+    get_logs,
+    get_log_by_id
+)
 
 logs = APIRouter()
 
@@ -61,3 +66,30 @@ async def list_logs(
     """
 
     return await get_logs(request_id, user_id, start_date, end_date, limit)
+
+
+@logs.get(
+    "/logs/{id}",
+    response_model=LogEntry,
+    summary="Retrieve a log by ID",
+    description="Returns a single log entry based on its unique identifier.",
+)
+async def retrieve_log_by_id(
+    id: UUID = Path(..., description="The UUID of the log to retrieve")
+) -> LogEntry:
+    """
+    Retrieve a specific log entry by its UUID.
+
+    - **id**: UUID of the log to retrieve.
+
+    Returns the log if found, otherwise raises 404.
+    """
+    log = await get_log_by_id(id)
+
+    if not log:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="Log not found"
+        )
+
+    return log

@@ -1,20 +1,24 @@
 name: resume-analyzer
 
 services:
-  api:
-    container_name: api
-    build: .
-    ports:
-      - "8000:8000"
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
     env_file:
       - .env
-    depends_on:
-      - mongo
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
 
   mongo:
     container_name: mongo
     image: mongo:6
     restart: always
+    env_file:
+      - .env
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
@@ -22,6 +26,30 @@ services:
       - "27017:27017"
     volumes:
       - mongo_vol:/data/db
+
+  api:
+    container_name: api
+    build: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - shared_data:/shared
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+      - rabbitmq
+
+  worker:
+    build: ./worker
+    container_name: worker
+    env_file:
+      - .env
+    volumes:
+      - shared_data:/shared
+    depends_on:
+      - mongo
+      - rabbitmq
 
   ollama:
     container_name: ollama
@@ -35,3 +63,4 @@ services:
 volumes:
   mongo_vol:
   ollama_vol:
+  shared_data:

@@ -1,19 +1,16 @@
 from uuid import UUID
+from pydantic import BaseModel
+from typing import Dict
+from datetime import datetime
 
-from pydantic import (
-    BaseModel,
-    Field
-)
-
-from datetime import (
-    datetime,
-    timezone
-)
+from apps.utils.enums import LogStatus
 
 
 class LogEntry(BaseModel):
+    id: UUID
     request_id: UUID
     user_id: UUID
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # noqa: E501
+    timestamp: datetime
     query: str
-    result: str
+    result: Dict
+    status: LogStatus

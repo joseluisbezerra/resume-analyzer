@@ -7,7 +7,6 @@ ollama serve &
 sleep 5
 
 # Pull llama3 model
-ollama pull bge-m3
 ollama pull llama3.2
 
 # Wait for the Ollama server to finish 
