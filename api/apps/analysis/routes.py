@@ -41,9 +41,9 @@ async def analyze_resumes(
     creates an audit log entry, and sends an asynchronous Celery task for OCR and NLP processing.
 
     - **files**: List of uploaded resume files (PDF, JPEG, PNG)
-    - **query**: Optional string for additional filtering or metadata
+    - **query**: Optional string for question
     - **request_id**: UUID used to track the request
-    - **user_id**: UUID of the user performing the request
+    - **user_id**: UUID of the user
 
     Returns a JSON response indicating how many files were accepted for analysis and
     a log object with tracking details.
