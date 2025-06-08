@@ -1,7 +1,7 @@
 import os
 import logging
 import requests
-import numpy as np
+import json
 
 from PIL import Image
 from uuid import UUID
@@ -9,8 +9,9 @@ from typing import List
 from pathlib import Path
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from paddleocr import PaddleOCR
 from pdf2image import convert_from_path
+import pytesseract
+
 
 from celery_app import celery
 
@@ -20,12 +21,7 @@ DATA_DIR = Path("/shared")
 MONGO_URI = os.getenv("MONGO_URI")
 MONGO_DB = os.getenv("MONGO_DB")
 
-ocr_engine = PaddleOCR(
-    ocr_version='PP-OCRv3',
-    use_textline_orientation=True,
-    use_gpu=True,
-    lang='pt'
-)
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 logger = logging.getLogger("analyze_resumes")
 
@@ -49,32 +45,30 @@ def analyze_resumes_task(file_names: List[str], log_id: UUID, query=''):
             images = []
 
             logger.info("OCR started successfully for file: %s", file_name)
-            
+
             if file_name.lower().endswith(".pdf"):
                 images += convert_from_path(str(file_path))
             else:
                 images.append(Image.open(file_path))
 
             for image in images:
-                image_np = np.array(image.convert("RGB"))
-                ocr_result = ocr_engine.predict(image_np)
-                text = "\n".join(ocr_result[0]["rec_texts"])
+                text = pytesseract.image_to_string(image, lang='por')
                 extracted_text.append(text)
 
-            logger.info("Summarize started successfully for file: %s", file_name)
+            logger.info("Summarize started successfully for file: %s", file_name)  # noqa: E501
 
             summary = summarize(" ".join(extracted_text))
             result["summaries"].append(summary)
 
             file_path.unlink(missing_ok=True)
 
-            logger.info("OCR and summarize completed successfully for file: %s", file_name)
+            logger.info("OCR and summarize completed successfully for file: %s", file_name)  # noqa: E501
 
         if (query.strip() != ''):
             logger.info("Match resume to question started successfully")
 
             result["analysis"] = match_resume_to_question(
-                summaries=result.summaries,
+                summaries=result["summaries"],
                 question=query
             )
 
@@ -113,7 +107,7 @@ def summarize(resume: str) -> dict:
     )
 
     response = requests.post(
-        "http://localhost:11434/api/chat",
+        "http://ollama:11434/api/chat",
         json={
             "model": "llama3.2:latest",
             "messages": [{"role": "user", "content": prompt}],
@@ -144,45 +138,37 @@ def summarize(resume: str) -> dict:
         }
     )
 
-    return response.json()
+    return json.loads(response.json()["message"]["content"])
 
 
-def match_resume_to_question(summaries: list[dict], question: str) -> dict:
+def match_resume_to_question(summaries: list[dict], question: str) -> str:
     prompt = (
-        "You are an expert in resume screening and candidate-job matching.\n"
-        "Below is a list of structured resumes and a job-related question written in any language.\n"  # noqa: E501
-        "First, translate the question into English. Then, based on the translated question, identify which resume best fits the requirements.\n"  # noqa: E501
-        "Provide the following in your response:\n"
-        "1. The name of the most suitable candidate (or None if none match);\n"
-        "2. A justification explaining why that candidate was selected (or why none match);\n"  # noqa: E501
-        "3. A brief summary of how the candidate's profile aligns (or doesn't) with the job described.\n"  # noqa: E501
-        "Be as objective and specific as possible.\n\n"
-        "Question:\n"
-        f"{question}\n\n"
-        "Resumes:\n"
-        f"{summaries}"
+        "You are an expert in resume analysis and candidate-job matching.\n\n"
+        "Task:\n"
+        "- You will be given a job-related question (which may be written in any language).\n"  # noqa: E501
+        "- A list of structured candidate resumes will also be provided.\n"
+        "- Internally, translate the question into English if needed.\n"
+        "- Then, evaluate the resumes based on the meaning of the question.\n"
+        "- Select the single most suitable candidate, or respond 'None' if no candidate matches well.\n\n"  # noqa: E501
+        "Your response must include:\n"
+        "1. The name of the best-matching candidate (or 'None');\n"
+        "2. A clear and objective justification for your choice (or lack thereof);\n"  # noqa: E501
+        "3. A concise summary of how the selected candidate aligns (or does not align) with the job requirements.\n\n"  # noqa: E501
+        "Guidelines:\n"
+        "- Do not include the translated question in your response.\n"
+        "- Be specific and only use information present in the resumes.\n"
+        "- Avoid vague or generic statements.\n\n"
+        f"Question:\n{question}\n\n"
+        f"Resumes:\n{summaries}"
     )
 
     response = requests.post(
-        "http://localhost:11434/api/chat",
+        "http://ollama:11434/api/generate",
         json={
             "model": "llama3.2:latest",
-            "messages": [{"role": "user", "content": prompt}],
+            "prompt": prompt,
             "stream": False,
-            "format": {
-                "type": "object",
-                "properties": {
-                    "best_candidate": {"type": ["string", "null"]},
-                    "justification": {"type": "string"},
-                    "alignment_summary": {"type": "string"}
-                },
-                "required": [
-                    "best_candidate",
-                    "justification",
-                    "alignment_summary"
-                ]
-            }
         }
     )
 
-    return response.json()
+    return response.json()["response"]
